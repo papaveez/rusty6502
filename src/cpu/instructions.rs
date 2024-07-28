@@ -24,7 +24,7 @@ impl Data {
     fn int_unwrap(d: Data, cpu: &mut CPU) -> i8 {
         match d {
             Data::Immediate(x) => x as i8,
-            _ => panic!("Attempt to unwrap integer from address !"),
+            Data::Address(x) => cpu.bus.read(x) as i8,
         }
     }
 }
@@ -47,7 +47,7 @@ pub enum Addrmode {
 }
 
 pub fn join_bytes(lo: u8, hi: u8) -> u16 {
-    (hi as u16) << 8 | lo as u16
+    ((hi as u16) << 8) | lo as u16
 }
 
 fn page_crossed(a1: u16, a2: u16) -> bool {
@@ -117,7 +117,7 @@ impl Addrmode {
 }
 
 pub struct Instr {
-    pub run: fn(Data, &mut CPU) -> u8,
+    pub run: fn(Data, &mut CPU),
     pub mode: Addrmode,
     pub cycles: u8,
 }
@@ -297,8 +297,8 @@ pub mod instruction_set {
 
     pub fn rol(d: Data, cpu: &mut CPU) {
         let w = Data::default_unwrap(d, cpu);
-        let c = cpu.flags.carry.clone();
-        cpu.flags.carry = w & 0x80 == 1;
+        let c = cpu.flags.carry;
+        cpu.flags.carry = w >> 7 == 1;
         let mut q = w << 1;
 
         if c {
@@ -311,7 +311,7 @@ pub mod instruction_set {
 
     pub fn ror(d: Data, cpu: &mut CPU) {
         let w = Data::default_unwrap(d, cpu);
-        let c = cpu.flags.carry.clone();
+        let c = cpu.flags.carry;
         cpu.flags.carry = w & 1 == 1;
         let mut q = w >> 1;
 
@@ -373,57 +373,65 @@ pub mod instruction_set {
     }
 
     pub fn bcc(d: Data, cpu: &mut CPU) {
-        cpu.branch(Data::int_unwrap(d, cpu), !cpu.flags.carry);
+        let i = Data::int_unwrap(d, cpu);
+        cpu.branch(i, !cpu.flags.carry);
     }
 
     pub fn bcs(d: Data, cpu: &mut CPU) {
-        cpu.branch(Data::int_unwrap(d, cpu), cpu.flags.carry);
+        let i = Data::int_unwrap(d, cpu);
+        cpu.branch(i, cpu.flags.carry);
     }
 
     pub fn beq(d: Data, cpu: &mut CPU) {
-        cpu.branch(Data::int_unwrap(d, cpu), cpu.flags.zero);
+        let i = Data::int_unwrap(d, cpu);
+        cpu.branch(i, cpu.flags.zero);
     }
 
     pub fn bmi(d: Data, cpu: &mut CPU) {
-        cpu.branch(Data::int_unwrap(d, cpu), cpu.flags.negative);
+        let i = Data::int_unwrap(d, cpu);
+        cpu.branch(i, cpu.flags.negative);
     }
 
     pub fn bne(d: Data, cpu: &mut CPU) {
-        cpu.branch(Data::int_unwrap(d, cpu), !cpu.flags.zero);
+        let i = Data::int_unwrap(d, cpu);
+        cpu.branch(i, !cpu.flags.zero);
     }
 
     pub fn bpl(d: Data, cpu: &mut CPU) {
-        cpu.branch(Data::int_unwrap(d, cpu), !cpu.flags.negative);
+        let i = Data::int_unwrap(d, cpu);
+        cpu.branch(i, !cpu.flags.negative);
     }
 
     pub fn bvc(d: Data, cpu: &mut CPU) {
-        cpu.branch(Data::int_unwrap(d, cpu), !cpu.flags.overflow);
+        let i = Data::int_unwrap(d, cpu);
+        cpu.branch(i, !cpu.flags.overflow);
     }
 
     pub fn bvs(d: Data, cpu: &mut CPU) {
-        cpu.branch(Data::int_unwrap(d, cpu), cpu.flags.overflow);
+        let i = Data::int_unwrap(d, cpu);
+        cpu.branch(i, cpu.flags.overflow);
     }
 
     // Jumps
     pub fn jmp(d: Data, cpu: &mut CPU) {
-        cpu.pc = Data::address_unwrap(d);
+        cpu.pc = Data::address_unwrap(d).wrapping_sub(1);
     }
 
     pub fn jsr(d: Data, cpu: &mut CPU) {
-        cpu.stack_push(cpu.pc.clone().wrapping_add(1));
-        cpu.pc = Data::address_unwrap(d);
+        cpu.stack_push(cpu.pc.wrapping_add(1));
+        cpu.pc = Data::address_unwrap(d).wrapping_sub(1);
     }
 
     pub fn rts(_: Data, cpu: &mut CPU) {
-        cpu.pc = cpu.stack_pop16().wrapping_add(1);
+        cpu.pc = cpu.stack_pop16().wrapping_sub(1);
     }
 
     pub fn brk(_: Data, cpu: &mut CPU) {
-        return; // do nothing for now
+        cpu.halted = true;
     }
 
-    pub fn rti(_: Data, cpu: &mut CPU) {
-        return; // do nothing for now
+    pub fn rti(_: Data, _cpu: &mut CPU) {
+        // do nothing for now
     }
 
     pub fn bit(d: Data, cpu: &mut CPU) {
@@ -433,7 +441,5 @@ pub mod instruction_set {
         cpu.flags.overflow = w & 0x40 > 0;
     }
 
-    pub fn nop(_: Data, cpu: &mut CPU) {
-        return;
-    }
+    pub fn nop(_: Data, _cpu: &mut CPU) {}
 }

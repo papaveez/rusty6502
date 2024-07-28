@@ -6,3 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+sdl2 = "0.34.0"
+rand = "=0.7.3"
+lazy_static = "1.4"
+tokio = { version = "1.35.1", features = ["full"] }
+clap = { version = "4.5.11", features = ["derive"] }
+
