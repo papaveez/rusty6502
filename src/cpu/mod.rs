@@ -65,9 +65,6 @@ impl CPU {
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)?;
 
-        for t in &buffer {
-            println!("{:#04x}", t);
-        }
         self.load(buffer);
         Ok(())
     }
@@ -76,6 +73,7 @@ impl CPU {
         self.bus.memory[0x0600..(0x0600 + data.len())].copy_from_slice(&data[..]);
         self.bus.write(0xFFFC, 0x00);
         self.bus.write(0xFFFD, 0x06);
+        self.reset();
     }
 
     pub fn reset(&mut self) {
@@ -85,7 +83,6 @@ impl CPU {
         self.reg.sp = 0xfd;
         self.flags = Flag::from(0b100100_u8);
         self.pc = self.bus.read(0xFFFC) as u16 | ((self.bus.read(0xFFFD) as u16) << 8);
-        println!("Loaded at 0x{:00X}", self.pc)
     }
 
     pub fn exec(&mut self) {

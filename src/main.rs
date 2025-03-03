@@ -139,7 +139,6 @@ fn main() {
             process::exit(1);
         }
     };
-    c.reset();
 
     println!("Initialising SDL2");
     let sdl_context = sdl2::init().unwrap();
@@ -178,4 +177,70 @@ fn main() {
 
         ::std::thread::sleep(std::time::Duration::new(0, 70_000));
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn eztest() {
+        let mut c = CPU::new(Bus { memory: [0; 65535] });
+        // let mut rng = rand::thread_rng();
+
+        let ezcode = vec![
+            0xa9, 0x10, // LDA #$10     -> A = #$10
+            0x85, 0x20, // STA $20      -> $20 = #$10
+            0xa9, 0x01, // LDA #$1      -> A = #$1
+            0x65, 0x20, // ADC $20      -> A = #$11
+            0x85, 0x21, // STA $21      -> $21=#$11
+            0xe6, 0x21, // INC $21      -> $21=#$12
+            0xa4, 0x21, // LDY $21      -> Y=#$12
+            0xc8, // INY          -> Y=#$13
+            0x00, // BRK
+        ];
+
+        c.load(ezcode);
+        c.run(move |_cpu| {});
+        assert_eq!(c.bus.read(0x20), 0x10);
+        assert_eq!(c.bus.read(0x21), 0x12);
+        assert_eq!(c.reg.a, 0x11);
+        assert_eq!(c.reg.y, 0x13);
+    }
+
+    fn run_testrom(romname: &str) {
+        let mut c = CPU::new(Bus { memory: [0; 65535] });
+        let mut file = String::from("./test_roms/");
+        file.push_str(romname);
+
+        match c.load_rom_file(&file) {
+            Ok(()) => (),
+            Err(_) => {
+                panic!("IOERROR: File not found");
+            }
+        }
+
+        c.run(move |_cpu| {});
+        assert_eq!(c.bus.read(0x6000), 0)
+    }
+
+    #[test]
+    fn implied() {
+        run_testrom("01-implied.nes");
+    }
+
+    #[test]
+    fn immediate() {
+        run_testrom("02-immediate.nes");
+    }
+
+    #[test]
+    fn zero_page() {
+        run_testrom("03-zero_page.nes");
+    }
+
+    #[test]
+    fn zp_xy() {
+        run_testrom("04-zp_xy.nes");
+    }
 }
